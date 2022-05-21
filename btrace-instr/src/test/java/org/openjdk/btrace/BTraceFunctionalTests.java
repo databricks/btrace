@@ -36,6 +36,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
+
 import jdk.jfr.EventType;
 import jdk.jfr.consumer.RecordedEvent;
 import jdk.jfr.consumer.RecordingFile;
@@ -296,8 +298,6 @@ public class BTraceFunctionalTests extends RuntimeTest {
 
   @Test
   public void testJfr() throws Exception {
-      debugBTrace = true;
-      debugTestApp = true;
     String rtVersion = System.getProperty("java.runtime.version", "");
     String testJavaHome = System.getenv().get("TEST_JAVA_HOME");
     if (testJavaHome != null) {
@@ -363,6 +363,34 @@ public class BTraceFunctionalTests extends RuntimeTest {
             }
           }
         });
+  }
+
+  @Test
+  public void testOnMethodUnattended() throws Exception {
+    debugBTrace = true;
+    debugTestApp = true;
+    TestApp testApp = launchTestApp("resources.Main");
+    File traceFile = locateTrace("btrace/OnMethodTest.java");
+    StringBuilder stdout = new StringBuilder();
+    StringBuilder stderr = new StringBuilder();
+
+    String pid = String.valueOf(testApp.getPid());
+    Process p = runBTrace(new String[]{"-x", pid, traceFile.toString()}, 10, stdout, stderr);
+
+    p.waitFor(5, TimeUnit.SECONDS);
+    assertTrue(stderr.toString().isEmpty(), stderr.toString());
+
+    String stdoutStr = stdout.toString();
+    int idx = stdoutStr.lastIndexOf("BTrace Probe:");
+    assertTrue(idx > -1);
+
+    String probeId = stdoutStr.substring(idx).split(":")[1].trim();
+    stdout = new StringBuilder();
+    runBTrace(new String[]{"-lp", pid}, 2, stdout, stderr);
+    System.out.println("===> " + stdout);
+    stdout = new StringBuilder();
+    runBTrace(new String[]{"-r", probeId, "exit", pid}, 0, stdout, stderr);
+    System.out.println("xxx");
   }
 
   private static boolean isVersionSafe(String rtVersion) {

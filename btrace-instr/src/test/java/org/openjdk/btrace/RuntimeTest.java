@@ -46,6 +46,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+
 import org.junit.jupiter.api.Assertions;
 
 /** @author Jaroslav Bachorik */
@@ -212,7 +213,7 @@ public abstract class RuntimeTest {
                 String l;
                 while ((l = stdoutReader.readLine()) != null) {
                   if (l.startsWith("ready:")) {
-                    pidStringRef.set(l.split("\\:")[1]);
+                    pidStringRef.set(l.split(":")[1]);
                     testAppLatch.countDown();
                   }
                   if (debugTestApp) {
@@ -274,7 +275,212 @@ public abstract class RuntimeTest {
     v.validate(stdout.toString(), stderr.toString(), ret.get(), jfrFile);
   }
 
-  private File locateTrace(String trace) {
+  public static final class TestApp {
+    private int pid;
+    private final CountDownLatch testAppLatch = new CountDownLatch(1);
+    private final Process process;
+    public TestApp(Process process, boolean debug) {
+      this.process = process;
+
+      BufferedReader stdoutReader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+
+      Thread outT =
+          new Thread(
+              () -> {
+                try {
+                  String l;
+                  while ((l = stdoutReader.readLine()) != null) {
+                    if (l.startsWith("ready:")) {
+                      pid = Integer.parseInt(l.split(":")[1]);
+                      testAppLatch.countDown();
+                    }
+                    if (debug) {
+                      System.out.println("[traced app] " + l);
+                    }
+                  }
+
+                } catch (Exception e) {
+                  e.printStackTrace(System.err);
+                }
+              },
+              "STDOUT Reader");
+      outT.setDaemon(true);
+
+      BufferedReader stderrReader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
+
+      Thread errT =
+          new Thread(
+              () -> {
+                try {
+                  String l = null;
+                  while ((l = stderrReader.readLine()) != null) {
+                    if (l.contains("Server VM warning")
+                        || l.contains("XML libraries not available")) {
+                      continue;
+                    }
+                    testAppLatch.countDown();
+                    if (debug) {
+                      System.err.println("[traced app] " + l);
+                    }
+                  }
+                } catch (Exception e) {
+                  e.printStackTrace(System.err);
+                }
+              },
+              "STDERR Reader");
+      errT.setDaemon(true);
+
+      outT.start();
+      errT.start();
+    }
+
+    public void stop() throws InterruptedException {
+      if (process.isAlive()) {
+        PrintWriter pw = new PrintWriter(process.getOutputStream());
+        pw.println("done");
+        pw.flush();
+        process.waitFor();
+      }
+    }
+
+    public int getPid() throws InterruptedException {
+      testAppLatch.await();
+      return pid;
+    }
+  }
+  public TestApp launchTestApp(String testApp, String ... cmdArgs) throws Exception {
+    if (forceDebug) {
+      // force debug flags
+      debugBTrace = true;
+      debugTestApp = true;
+    }
+    String jfrFile = null;
+    List<String> args = new ArrayList<>(Arrays.asList(javaHome + "/bin/java", "-cp", cp));
+    if (attachDebugger) {
+      args.add("-agentlib:jdwp=transport=dt_socket,server=y,address=8000");
+    }
+    args.add("-XX:+AllowRedefinitionToAddDeleteMethods");
+    args.add("-XX:+IgnoreUnrecognizedVMOptions");
+    // uncomment the following line to get extra JFR logs
+    //    args.add("-Xlog:jfr*=trace");
+    args.addAll(extraJvmArgs);
+    args.addAll(
+        Arrays.asList(
+            "-XX:+AllowRedefinitionToAddDeleteMethods", "-XX:+IgnoreUnrecognizedVMOptions"));
+    if (startJfr) {
+      jfrFile = Files.createTempFile("btrace-", ".jfr").toString();
+      args.add("-XX:StartFlightRecording=settings=default,dumponexit=true,filename=" + jfrFile);
+    }
+    args.add(testApp);
+
+    ProcessBuilder pb = new ProcessBuilder(args);
+    pb.environment().remove("JAVA_TOOL_OPTIONS");
+
+    return new TestApp(pb.start(), debugTestApp);
+  }
+
+  public Process runBTrace(
+      String[] args,
+      int checkLines,
+      StringBuilder stdout,
+      StringBuilder stderr)
+      throws Exception {
+    List<String> argVals =
+        new ArrayList<>(
+            Arrays.asList(
+                javaHome + "/bin/java",
+                "-cp",
+                cp,
+                "org.openjdk.btrace.client.Main",
+                debugBTrace ? "-v" : "",
+                "-cp",
+                eventsClassPath,
+                "-d",
+                "/tmp/btrace-test"
+                ));
+    argVals.addAll(Arrays.asList(args));
+    if (Files.exists(Paths.get(System.getenv("TEST_JAVA_HOME"), "jmods"))) {
+      argVals.addAll(
+          1,
+          Arrays.asList(
+              "--add-exports", "jdk.internal.jvmstat/sun.jvmstat.monitor=ALL-UNNAMED"));
+    }
+    ProcessBuilder pb = new ProcessBuilder(argVals);
+
+    pb.environment().remove("JAVA_TOOL_OPTIONS");
+    Process p = pb.start();
+
+    CountDownLatch l = new CountDownLatch(checkLines);
+
+    new Thread(
+        () -> {
+          try {
+            BufferedReader br =
+                new BufferedReader(
+                    new InputStreamReader(p.getErrorStream(), StandardCharsets.UTF_8));
+
+            String line = null;
+            while ((line = br.readLine()) != null) {
+              System.out.println("[btrace err] " + line);
+              if (line.contains("Server VM warning")
+                  || line.contains("XML libraries not available")
+                  || line.contains("Connection reset")) {
+                // skip JVM generated warnings
+                continue;
+              }
+              if (line.startsWith("[traced app]") || line.startsWith("[btrace out]")) {
+                // skip test debug lines
+                continue;
+              }
+              stderr.append(line).append('\n');
+              if (line.contains("Exception") || line.contains("Error")) {
+                for (int i = 0; i < checkLines; i++) {
+                  l.countDown();
+                }
+              }
+            }
+          } catch (Exception e) {
+            for (int i = 0; i < checkLines; i++) {
+              l.countDown();
+            }
+            throw new Error(e);
+          }
+        },
+        "Stderr Reader")
+        .start();
+
+    new Thread(
+        () -> {
+          try {
+            BufferedReader br =
+                new BufferedReader(
+                    new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8));
+            String line = null;
+            while ((line = br.readLine()) != null) {
+              stdout.append(line).append('\n');
+              System.out.println("[btrace out] " + line);
+              if (!(debugBTrace && line.contains("DEBUG:"))) {
+                l.countDown();
+              }
+            }
+          } catch (Exception e) {
+            for (int i = 0; i < checkLines; i++) {
+              l.countDown();
+            }
+            throw new Error(e);
+          }
+        },
+        "Stdout Reader")
+        .start();
+
+    l.await(timeout, TimeUnit.MILLISECONDS);
+
+    // Thread.sleep(100_000_000L);
+
+    return p;
+  }
+
+  public File locateTrace(String trace) {
     Path start = projectRoot.resolve("btrace-instr/src");
     AtomicReference<Path> tracePath = new AtomicReference<>();
     try {

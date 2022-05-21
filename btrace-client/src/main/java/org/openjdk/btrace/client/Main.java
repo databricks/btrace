@@ -97,11 +97,14 @@ public final class Main {
     boolean includePathDefined = false;
     String statsdDef = "";
     String resumeProbe = null;
+    String probeCommand = null;
+    String probeCommandArg = null;
     boolean listProbes = false;
     boolean unattended = false;
 
     OUTER:
-    for (String arg : args) {
+    for (int i = 0; i < args.length; i++) {
+      String arg = args[i];
       switch (arg) {
         case "-v":
           DEBUG = true;
@@ -114,6 +117,14 @@ public final class Main {
             System.out.println(vm);
           }
           return;
+        case "-r": {
+          if (i < args.length - 1) {
+            if (args[i + 1].equalsIgnoreCase("help")) {
+              System.out.println(Messages.get("remote.commands.help"));
+            }
+          }
+          return;
+        }
       }
     }
 
@@ -166,6 +177,15 @@ public final class Main {
         } else if (args[count].equals("-r")) {
           if (isDebug()) debugPrint("reconnecting to an already active probe " + resumeProbe);
           resumeProbe = args[++count];
+          if (count < args.length - 2 && !args[count + 1].startsWith("-")) {
+            probeCommand = args[++count].toLowerCase();
+            if (probeCommand.equalsIgnoreCase("event") && count < args.length - 2) {
+              probeCommandArg = args[++count];
+            }
+          }
+          if (isDebug() && probeCommand != null) {
+            debugPrint("executing probe command '" + probeCommand +"'" + (probeCommandArg != null ? "(" + probeCommandArg + ")" : ""));
+          }
         } else if (args[count].equals("-lp")) {
           if (isDebug()) debugPrint("listing active probes");
           listProbes = true;
@@ -221,7 +241,7 @@ public final class Main {
         if (con != null) {
           registerSignalHandler(client);
         }
-        client.reconnect(host, resumeProbe, createCommandListener(client));
+        client.reconnect(host, resumeProbe, createCommandListener(client), new String[]{probeCommand, probeCommandArg});
       } else if (listProbes) {
         registerExitHook(client);
         client.attach(pid.toString(), null, classPath);
