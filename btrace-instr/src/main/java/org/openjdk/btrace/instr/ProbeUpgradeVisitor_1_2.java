@@ -8,11 +8,12 @@ import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.FieldVisitor;
 import org.objectweb.asm.MethodVisitor;
+import org.openjdk.btrace.core.annotations.Event;
 
 final class ProbeUpgradeVisitor_1_2 extends ClassVisitor {
 
   private static final String ANNOTATIONS_PREFIX_OLD = "Lcom/sun/btrace/annotations/";
-  private static final String ANNOTATIONS_PREFIX_NEW = "Lorg/openjdk/btrace/core/annotations/";
+  private static final String ANNOTATIONS_PREFIX_NEW = "L" + Event.class.getPackage().getName().replace(".", "/") + "/";
 
   ProbeUpgradeVisitor_1_2(ClassVisitor cv) {
     super(ASM7, cv);

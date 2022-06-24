@@ -58,7 +58,15 @@ import org.openjdk.btrace.core.BTraceRuntime;
 import org.openjdk.btrace.core.DebugSupport;
 import org.openjdk.btrace.core.annotations.Event;
 import org.openjdk.btrace.core.annotations.Return;
+import org.openjdk.btrace.core.handlers.ErrorHandler;
+import org.openjdk.btrace.core.handlers.EventHandler;
+import org.openjdk.btrace.core.handlers.ExitHandler;
+import org.openjdk.btrace.core.handlers.LowMemoryHandler;
+import org.openjdk.btrace.core.handlers.TimerHandler;
+import org.openjdk.btrace.core.jfr.JfrEvent;
 import org.openjdk.btrace.runtime.BTraceRuntimeImplBase;
+import org.openjdk.btrace.services.api.RuntimeContext;
+import org.openjdk.btrace.services.api.Service;
 
 /**
  * This class preprocesses a compiled BTrace program. This is done after BTrace safety verification
@@ -80,25 +88,21 @@ import org.openjdk.btrace.runtime.BTraceRuntimeImplBase;
  *     publicly accessible
  */
 final class Preprocessor {
-  private static final String ANNOTATIONS_PREFIX = "org/openjdk/btrace/core/annotations/";
+  private static final String ANNOTATIONS_PREFIX = Event.class.getPackage().getName().replace(".", "/") + "/";
   private static final Type TLS_TYPE = Type.getType("L" + ANNOTATIONS_PREFIX + "TLS;");
   private static final Type EXPORT_TYPE = Type.getType("L" + ANNOTATIONS_PREFIX + "Export;");
   private static final Type INJECTED_TYPE = Type.getType("L" + ANNOTATIONS_PREFIX + "Injected;");
   private static final Type EVENT_TYPE = Type.getType("L" + ANNOTATIONS_PREFIX + "Event;");
-  private static final String SERVICE_INTERNAL = "org/openjdk/btrace/services/api/Service";
-  private static final String TIMERHANDLER_INTERNAL =
-      "org/openjdk/btrace/core/handlers/TimerHandler";
+  private static final String SERVICE_INTERNAL = Service.class.getName().replace(".", "/");
+  private static final String TIMERHANDLER_INTERNAL = TimerHandler.class.getName().replace(".", "/");
   private static final String TIMERHANDLER_DESC = "L" + TIMERHANDLER_INTERNAL + ";";
-  private static final String EVENTHANDLER_INTERNAL =
-      "org/openjdk/btrace/core/handlers/EventHandler";
+  private static final String EVENTHANDLER_INTERNAL = EventHandler.class.getName().replace(".", "/");
   private static final String EVENTHANDLER_DESC = "L" + EVENTHANDLER_INTERNAL + ";";
-  private static final String ERRORHANDLER_INTERNAL =
-      "org/openjdk/btrace/core/handlers/ErrorHandler";
+  private static final String ERRORHANDLER_INTERNAL = ErrorHandler.class.getName().replace(".", "/");
   private static final String ERRORHANDLER_DESC = "L" + ERRORHANDLER_INTERNAL + ";";
-  private static final String EXITHANDLER_INTERNAL = "org/openjdk/btrace/core/handlers/ExitHandler";
+  private static final String EXITHANDLER_INTERNAL = ExitHandler.class.getName().replace(".", "/");
   private static final String EXITHANDLER_DESC = "L" + EXITHANDLER_INTERNAL + ";";
-  private static final String LOWMEMORYHANDLER_INTERNAL =
-      "org/openjdk/btrace/core/handlers/LowMemoryHandler";
+  private static final String LOWMEMORYHANDLER_INTERNAL = LowMemoryHandler.class.getName().replace(".", "/");
   private static final String LOWMEMORYHANDLER_DESC = "L" + LOWMEMORYHANDLER_INTERNAL + ";";
   private static final String NEW_TLS_DESC =
       "(" + Constants.OBJECT_DESC + ")" + Constants.THREAD_LOCAL_DESC;
@@ -131,22 +135,19 @@ final class Preprocessor {
       "(" + Constants.BTRACERTIMPL_DESC + ")" + Constants.BOOLEAN_DESC;
   private static final String BTRACERT_HANDLE_EXCEPTION_DESC =
       "(" + Constants.THROWABLE_DESC + ")" + Constants.VOID_DESC;
-  private static final String RT_CTX_INTERNAL = "org/openjdk/btrace/services/api/RuntimeContext";
+  private static final String RT_CTX_INTERNAL = RuntimeContext.class.getName().replace(".", "/");
   private static final String RT_CTX_DESC = "L" + RT_CTX_INTERNAL + ";";
   private static final Type RT_CTX_TYPE = Type.getType(RT_CTX_DESC);
   private static final String RT_SERVICE_CTR_DESC = "(" + RT_CTX_DESC + ")V";
   private static final String SERVICE_CTR_DESC =
       "(" + Constants.STRING_DESC + ")" + Constants.VOID_DESC;
 
-  private static final String JFR_EVENT_TEMPLATE_INTERNAL =
-      "org/openjdk/btrace/core/jfr/JfrEvent$Template";
+  private static final String JFR_EVENT_TEMPLATE_INTERNAL = JfrEvent.class.getName().replace(".", "/") + "$Template";
   private static final String JFR_EVENT_TEMPLATE_DESC = "L" + JFR_EVENT_TEMPLATE_INTERNAL + ";";
-  private static final String JFR_EVENT_TEMPLATE_FIELD_INTERNAL =
-      "org/openjdk/btrace/core/jfr/JfrEvent$Template$Field";
+  private static final String JFR_EVENT_TEMPLATE_FIELD_INTERNAL = JfrEvent.class.getName().replace(".", "/") + "$Template$Field";
   private static final String JFR_EVENT_TEMPLATE_FIELD_DESC =
       "L" + JFR_EVENT_TEMPLATE_FIELD_INTERNAL + ";";
-  private static final String JFR_EVENT_FACTORY_INTERNAL =
-      "org/openjdk/btrace/core/jfr/JfrEvent$Factory";
+  private static final String JFR_EVENT_FACTORY_INTERNAL = JfrEvent.class.getName().replace(".", "/") + "$Factory";
   private static final String JFR_EVENT_FACTORY_DESC = "L" + JFR_EVENT_FACTORY_INTERNAL + ";";
 
   private static final Map<String, String> BOX_TYPE_MAP = new HashMap<>();
