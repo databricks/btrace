@@ -96,7 +96,7 @@ public class MethodTrackingExpander extends BaseTemplateExpander {
   public static final String $METHODID = "methodid";
   public static final String $LEVEL = "level";
 
-  private static final String METHOD_COUNTER_CLASS = "org/openjdk/btrace/instr/MethodTracker";
+  private static final String METHOD_COUNTER_CLASS = MethodTracker.class.getName().replace(".", "/");;
   private final int methodId;
   private final Collection<Interval> levelIntervals = new ArrayList<>();
   private final MethodInstrumentorHelper mHelper;

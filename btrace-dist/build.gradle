@@ -54,8 +54,8 @@ task agentJar(type: ShadowJar) {
 
     manifest {
         attributes(
-                "Premain-Class": "org.openjdk.btrace.agent.Main",
-                "Agent-Class": "org.openjdk.btrace.agent.Main",
+                "Premain-Class": "shadedbtrace.org.openjdk.btrace.agent.Main",
+                "Agent-Class": "shadedbtrace.org.openjdk.btrace.agent.Main",
                 "Can-Redefine-Classes": true,
                 "Can-Retransform-Classes": true,
                 "Boot-Class-Path": "btrace-boot.jar"

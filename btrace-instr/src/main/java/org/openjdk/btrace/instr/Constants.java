@@ -52,6 +52,10 @@ import org.openjdk.btrace.core.annotations.TargetInstance;
 import org.openjdk.btrace.core.annotations.TargetMethodOrField;
 import org.openjdk.btrace.core.annotations.Where;
 import org.openjdk.btrace.core.jfr.JfrEvent;
+import org.openjdk.btrace.core.types.AnyType;
+import org.openjdk.btrace.runtime.BTraceRuntimeAccess;
+import org.openjdk.btrace.runtime.BTraceRuntimeImplBase;
+import org.openjdk.btrace.core.BTraceRuntime;
 import org.openjdk.btrace.services.api.Service;
 
 /**
@@ -74,7 +78,7 @@ public abstract class Constants {
   public static final String OBJECT_DESC = "L" + OBJECT_INTERNAL + ";";
   public static final Type OBJECT_TYPE = Type.getType(OBJECT_DESC);
 
-  public static final String ANYTYPE_INTERNAL = "org/openjdk/btrace/core/types/AnyType";
+  public static final String ANYTYPE_INTERNAL = AnyType.class.getName().replace(".", "/");
   public static final String ANYTYPE_DESC = "L" + ANYTYPE_INTERNAL + ";";
   public static final Type ANYTYPE_TYPE = Type.getType(ANYTYPE_DESC);
 
@@ -97,15 +101,13 @@ public abstract class Constants {
   public static final String THROWABLE_DESC = "L" + THROWABLE_INTERNAL + ";";
   public static final Type THROWABLE_TYPE = Type.getType(THROWABLE_DESC);
 
-  public static final String BTRACERTACCESS_INTERNAL =
-      "org/openjdk/btrace/runtime/BTraceRuntimeAccess";
+  public static final String BTRACERTACCESS_INTERNAL = BTraceRuntimeAccess.class.getName().replace(".", "/");
   public static final String BTRACERTACCESS_DESC = "L" + BTRACERTACCESS_INTERNAL + ";";
-  public static final String BTRACERT_INTERNAL = "org/openjdk/btrace/core/BTraceRuntime";
+  public static final String BTRACERT_INTERNAL = BTraceRuntime.class.getName().replace(".", "/");
   public static final String BTRACERT_DESC = "L" + BTRACERT_INTERNAL + ";";
-  public static final String BTRACERTIMPL_INTERNAL = "org/openjdk/btrace/core/BTraceRuntime$Impl";
+  public static final String BTRACERTIMPL_INTERNAL = BTraceRuntime.class.getName().replace(".", "/") + "$Impl";
   public static final String BTRACERTIMPL_DESC = "L" + BTRACERTIMPL_INTERNAL + ";";
-  public static final String BTRACERTBASE_INTERNAL =
-      "org/openjdk/btrace/runtime/BTraceRuntimeImplBase";
+  public static final String BTRACERTBASE_INTERNAL = BTraceRuntimeImplBase.class.getName().replace(".", "/");
   public static final String BTRACERTBASE_DESC = "L" + BTRACERTBASE_INTERNAL + ";";
   public static final Type BTRACERT_TYPE = Type.getType(BTRACERT_DESC);
 
